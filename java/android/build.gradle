@@ -21,6 +21,10 @@ allprojects {
         google()
         jcenter()
         mavenLocal()
+
+        maven {
+            url "http://nexus.terraframe.com/content/groups/allrepos"
+        }
     }
 }
 
