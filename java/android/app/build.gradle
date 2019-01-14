@@ -1,5 +1,31 @@
 apply plugin: 'com.android.application'
 
+
+Properties properties = new Properties()
+if (project.rootProject.file("local.properties").exists()) {
+    properties.load(project.rootProject.file("local.properties").newDataInputStream())
+
+    if (properties != null) {
+        String[] propertyKeys = ["georegistry.url", "georegistry.username", "georegistry.password"]
+        boolean containsAllKeys = true
+
+        for (String propertyKey: propertyKeys) {
+            if (!properties.containsKey(propertyKey)) {
+                containsAllKeys = false
+                break
+            }
+        }
+
+        if (!containsAllKeys) {
+            throw new Exception("One of the required config variables is not set in your local.properties. Make sure you have " + propertyKeys.join(", "));
+        }
+    } else {
+        throw new Exception("Properties was null!! The file does not exist or contains nothing")
+    }
+} else {
+    throw new Exception("local.properties does not exist")
+}
+
 android {
     compileSdkVersion 27
     defaultConfig {
@@ -14,6 +40,18 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            buildConfigField "String", "GEOREGISTRY_URL", properties['georegistry.url']
+            buildConfigField "String", "GEOREGISTRY_USERNAME", properties['georegistry.username']
+            buildConfigField "String", "GEOREGISTRY_PASSWORD", properties['georegistry.password']
+        }
+
+        debug {
+            buildConfigField "String", "GEOREGISTRY_URL", properties['georegistry.url']
+            buildConfigField "String", "GEOREGISTRY_USERNAME", properties['georegistry.username']
+            buildConfigField "String", "GEOREGISTRY_PASSWORD", properties['georegistry.password']
+
+            // TODO: FIX THIS FOR CIs because local.properties files do not exist for them
         }
     }
     productFlavors {
