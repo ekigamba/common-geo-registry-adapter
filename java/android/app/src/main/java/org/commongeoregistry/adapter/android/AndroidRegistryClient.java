@@ -1,20 +1,16 @@
 package org.commongeoregistry.adapter.android;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
+import android.util.Log;
 
 import com.google.gson.JsonObject;
 
 import org.commongeoregistry.adapter.HttpRegistryClient;
 import org.commongeoregistry.adapter.action.AbstractAction;
 import org.commongeoregistry.adapter.constants.RegistryUrls;
-import org.commongeoregistry.adapter.dataaccess.ChildTreeNode;
-import org.commongeoregistry.adapter.dataaccess.GeoObject;
-import org.commongeoregistry.adapter.dataaccess.ParentTreeNode;
-import org.commongeoregistry.adapter.http.AbstractHttpConnector;
 import org.commongeoregistry.adapter.http.Connector;
 import org.commongeoregistry.adapter.http.HttpResponse;
+import org.commongeoregistry.adapter.http.ResponseException;
 import org.commongeoregistry.adapter.http.ResponseProcessor;
 
 
@@ -26,6 +22,7 @@ public class AndroidRegistryClient extends HttpRegistryClient
   private static final long serialVersionUID = 2367836756416546643L;
   
   private LocalObjectCache localObjectCache;
+  private static final String TAG = AndroidRegistryClient.class.getName();
 
   /**
    *
@@ -69,14 +66,31 @@ public class AndroidRegistryClient extends HttpRegistryClient
    */
   public void pushObjectsToRegistry()
   {
-    AbstractAction[] actions = this.localObjectCache.getUnpushedActionHistory();
+    LocalObjectCache.AbstractActionsHolder abstractActionsHolder = this.localObjectCache.getUnpushedActionHistory();
+    AbstractAction[] actions = abstractActionsHolder.getAbstractActions();
+    int lastId = abstractActionsHolder.getLastId();
 
-    String sActions = AbstractAction.serializeActions(actions).toString();
+    if (actions.length > 0) {
 
-    JsonObject params = new JsonObject();
-    params.addProperty(RegistryUrls.EXECUTE_ACTIONS_PARAM_ACTIONS, sActions);
+      String sActions = AbstractAction.serializeActions(actions).toString();
 
-    HttpResponse resp = this.getConnector().httpPost(RegistryUrls.EXECUTE_ACTIONS, params.toString());
-    ResponseProcessor.validateStatusCode(resp);
+      JsonObject params = new JsonObject();
+      params.addProperty(RegistryUrls.EXECUTE_ACTIONS_PARAM_ACTIONS, sActions);
+
+      HttpResponse resp = this.getConnector().httpPost(RegistryUrls.EXECUTE_ACTIONS, params.toString());
+
+      try {
+        ResponseProcessor.validateStatusCode(resp);
+
+        this.localObjectCache.insertLastPushId(
+                lastId,
+                this.localObjectCache.getmDbHelper().getReadableDatabase()
+        );
+      } catch (ResponseException e) {
+        Log.e(TAG, Log.getStackTraceString(e));
+      }
+    } else {
+      Log.e(TAG, "There exists no unpushed actions");
+    }
   }
 }

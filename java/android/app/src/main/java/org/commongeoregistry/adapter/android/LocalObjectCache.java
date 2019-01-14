@@ -15,15 +15,10 @@ import org.commongeoregistry.adapter.action.AddChildAction;
 import org.commongeoregistry.adapter.action.CreateAction;
 import org.commongeoregistry.adapter.action.DeleteAction;
 import org.commongeoregistry.adapter.action.UpdateAction;
-import org.commongeoregistry.adapter.action.AbstractAction;
-import org.commongeoregistry.adapter.action.AddChildAction;
-import org.commongeoregistry.adapter.action.DeleteAction;
-import org.commongeoregistry.adapter.action.UpdateAction;
 import org.commongeoregistry.adapter.android.sql.LocalCacheContract;
 import org.commongeoregistry.adapter.android.sql.LocalCacheContract.GeoObjectEntry;
 import org.commongeoregistry.adapter.android.sql.LocalCacheContract.TreeNodeEntry;
 import org.commongeoregistry.adapter.android.sql.LocalCacheDbHelper;
-import org.commongeoregistry.adapter.constants.DefaultTerms;
 import org.commongeoregistry.adapter.dataaccess.ChildTreeNode;
 import org.commongeoregistry.adapter.dataaccess.GeoObject;
 import org.commongeoregistry.adapter.dataaccess.ParentTreeNode;
@@ -86,7 +81,7 @@ public class LocalObjectCache implements Serializable {
         this.adapter = adapter;
     }
 
-    private void insertLastPushId(int lastId, SQLiteDatabase db)
+    public void insertLastPushId(int lastId, SQLiteDatabase db)
     {
         ContentValues values = new ContentValues();
         values.put(LocalCacheContract.ActionPushHistoryEntry.COLUMN_NAME_ID, 0);
@@ -95,7 +90,7 @@ public class LocalObjectCache implements Serializable {
         db.insertWithOnConflict(LocalCacheContract.ActionPushHistoryEntry.TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
     }
 
-    private int getLastPushId(SQLiteDatabase db)
+    public int getLastPushId(SQLiteDatabase db)
     {
         String[] select_columns = {
             LocalCacheContract.ActionPushHistoryEntry.COLUMN_NAME_LAST_ID
@@ -220,12 +215,17 @@ public class LocalObjectCache implements Serializable {
         return registryId;
     }
 
+    public AbstractActionsHolder getUnpushedActionHistory() {
+        return getUnpushedActionHistory(0);
+    }
+
+
     /**
      * Returns all action history that has been recorded since the last time this method was invoked.
      *
      * @return
      */
-    public AbstractAction[] getUnpushedActionHistory()
+    public AbstractActionsHolder getUnpushedActionHistory(int limit)
     {
         SQLiteDatabase db = mDbHelper.getReadableDatabase();
 
@@ -243,6 +243,11 @@ public class LocalObjectCache implements Serializable {
 
         // How you want the results sorted in the resulting Cursor
         String sortOrder = LocalCacheContract.ActionEntry.COLUMN_NAME_ID + " ASC";
+        String limitClause = null;
+
+        if (limit > 0) {
+            limitClause = String.valueOf(limit);
+        }
 
         ArrayList<AbstractAction> history = new ArrayList<AbstractAction>();
         int lastId = lastPush;
@@ -256,7 +261,8 @@ public class LocalObjectCache implements Serializable {
                     selectionArgs,          // The values for the WHERE clause
                     null,                   // don't group the rows
                     null,                   // don't filter by row groups
-                    sortOrder               // The sort order
+                    sortOrder,               // The sort order
+                    limitClause             // If null, then no limit will be applied
             );
 
             int i = 0;
@@ -295,9 +301,8 @@ public class LocalObjectCache implements Serializable {
             }
         }
 
-        insertLastPushId(lastId, db);
 
-        return history.toArray(new AbstractAction[history.size()]);
+        return new AbstractActionsHolder(history.toArray(new AbstractAction[history.size()]), lastId);
     }
 
     /**
@@ -750,6 +755,10 @@ public class LocalObjectCache implements Serializable {
         return new ParentTreeNode(parent, hierarchyType);
     }
 
+    public LocalCacheDbHelper getmDbHelper() {
+        return mDbHelper;
+    }
+
     private Cursor getParentCursor(String childId, String[] parentTypes, SQLiteDatabase db) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT p." + GeoObjectEntry.COLUMN_NAME_OBJECT);
@@ -774,5 +783,23 @@ public class LocalObjectCache implements Serializable {
 
     public void close() {
         this.mDbHelper.close();
+    }
+
+    public static class AbstractActionsHolder {
+        private AbstractAction[] abstractActions;
+        private int lastId;
+
+        public AbstractActionsHolder(@NonNull AbstractAction[] abstractActions, int lastId) {
+            this.abstractActions = abstractActions;
+            this.lastId = lastId;
+        }
+
+        public AbstractAction[] getAbstractActions() {
+            return abstractActions;
+        }
+
+        public int getLastId() {
+            return lastId;
+        }
     }
 }
